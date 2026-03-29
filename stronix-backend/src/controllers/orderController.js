@@ -111,3 +111,16 @@ export const getMyOrders = async (req, res) => {
         res.status(500).json({ error: err.message});
     }
 };
+
+export const getAllOrders = async (req, res) => {
+    try {
+        const orders = await Order.find()
+             .populate("product")
+             .populate("user", "-password")
+             .sort({ createdAt: -1});
+
+        res.json(orders);
+    } catch(err){
+        res.status(500).json({ error: err.message});
+    }
+};
