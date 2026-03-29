@@ -1,39 +1,66 @@
 import Order from "../models/Order.js";
 import Inventory from "../models/Inventory.js";
 import Product from "../models/Product.js";
+import OrderItem from "../models/OrderItem.js";
 
 export const createOrder = async (req, res) => {
   try {
-    const { productId, quantity } = req.body;
+    const { items } = req.body; 
+    // items = [{ productId, quantity }]
 
-    const product = await Product.findById(productId);
-    if (!product) return res.status(404).json({ message: "Product not found" });
+    let totalAmount = 0;
+    const orderItems = [];
 
-    const inventory = await Inventory.findOne({ product: productId });
+    for (let item of items) {
+      const product = await Product.findById(item.productId);
 
-    if (!inventory) {
-      return res.status(404).json({ message: "Product not in inventory" });
+      if (!product) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      if (product.status !== "ACTIVATE") {
+        return res.status(400).json({ message: "Product not active" });
+      }
+
+      
+      const inventory = await Inventory.findOneAndUpdate(
+        {
+          product: item.productId,
+          availableQuantity: { $gte: item.quantity }
+        },
+        {
+          $inc: {
+            availableQuantity: -item.quantity,
+            reservedQuantity: +item.quantity
+          }
+        },
+        { new: true }
+      );
+
+      if (!inventory) {
+        return res.status(400).json({ message: "Not enough stock" });
+      }
+
+      const itemTotal = product.price * item.quantity;
+      totalAmount += itemTotal;
+
+      const orderItem = await OrderItem.create({
+        product: item.productId,
+        quantity: item.quantity,
+        price: product.price
+      });
+
+      orderItems.push(orderItem._id);
     }
-
-    if (inventory.availableQuantity < quantity) {
-      return res.status(400).json({ message: "Not enough stock" });
-    }
-
-    const totalAmount = product.price * quantity;
-
-   
-    inventory.availableQuantity -= quantity;
-    inventory.reservedQuantity += quantity;
-    await inventory.save();
 
     const order = await Order.create({
       user: req.user._id,
-      product: productId,
-      quantity,
+      items: orderItems,
       totalAmount
     });
 
     res.json(order);
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -84,41 +111,50 @@ export const cancelOrder = async (req, res) => {
 };
 
 export const getOrderById = async (req, res) => {
-    try{
-        const {orderId} = req.params;
+  try {
+    const order = await Order.findById(req.params.orderId)
+      .populate({
+        path: "items",
+        populate: {
+          path: "product"
+        }
+      })
+      .populate("user", "-password");
 
-        const order = await Order.findById(orderId) 
-         .populate("product")
-         .populate("user");
+    res.json(order);
 
-         if(!order) {
-            return res.status(404).json({ message: "Order not found"});
-         }
-         res.json(order);
-    } catch(err){
-        res.status(500).json({ error: err.message});
-    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 };
 
 export const getMyOrders = async (req, res) => {
-    try {
-        const orders = await Order.find({ user: req.user._id})
-            .populate("product")
-            .sort({ createdAt: -1});
+  try {
+    const orders = await Order.find({ user: req.user._id })
+      .populate({
+        path: "items",
+        populate: {
+          path: "product"
+        }
+      });
 
-        res.json(orders);
-    } catch(err){
-        res.status(500).json({ error: err.message});
-    }
+    res.json(orders);
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 };
 
 export const getAllOrders = async (req, res) => {
     try {
         const orders = await Order.find()
-             .populate("product")
-             .populate("user", "-password")
-             .sort({ createdAt: -1});
-
+  .populate({
+    path: "items",
+    populate: {
+      path: "product"
+    }
+  })
+  .populate("user", "-password");
         res.json(orders);
     } catch(err){
         res.status(500).json({ error: err.message});

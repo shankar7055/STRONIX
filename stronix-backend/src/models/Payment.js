@@ -14,7 +14,7 @@ const paymentSchema = new mongoose.Schema({
 
     status: {
         type: String,
-        enum: ["INITIATED", "SUCCESS", "FAILED"],
+        enum: ["INITIATED", "SUCCESS", "FAILED", "REFUNDED"],
         default: "INITIATED"
     }
 }, { timestamps: true});
