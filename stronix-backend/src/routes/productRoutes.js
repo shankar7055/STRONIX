@@ -7,6 +7,11 @@ const router = express.Router();
 
 router.get("/", getProducts);
 
-router.post("/", protect, authorize("ADMIN"), createProduct);
+// router.post("/", protect, authorize("ADMIN"), createProduct);
+router.post("/", createProduct);
 
+
+router.get("/test", (req, res) => {
+  res.send("PRODUCT ROUTE WORKING");
+});
 export default router;
