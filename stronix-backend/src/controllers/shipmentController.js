@@ -1,5 +1,6 @@
 import Shipment from "../models/Shipment.js";
 import Order from "../models/Order.js";
+import AuditLog from "../models/AuditLog.js";
 
 export const createShipment = async (req, res) => {
     try {

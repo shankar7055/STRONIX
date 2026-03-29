@@ -9,6 +9,10 @@ import inventoryRoutes from "./routes/inventoryRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import shipmentRoutes from "./routes/shipmentRoutes.js";
+import supplierRoutes from "./routes/supplierRoutes.js";
+import purchaseRoutes from "./routes/purchaseRoutes.js";
+import invoiceRoutes from "./routes/invoiceRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
 dotenv.config();
 
 const app = express(); 
@@ -24,6 +28,18 @@ app.use("/products", productRoutes);
 app.use("/inventory", inventoryRoutes);
 app.use("/payments", paymentRoutes);
 app.use("/shipments", shipmentRoutes);
+app.use("/suppliers", supplierRoutes);
+app.use("/purchase-orders", purchaseRoutes);
+app.use("/invoices", invoiceRoutes);
+app.use("/reports", reportRoutes);
+
+app.get("/health", (req, res) => {
+  res.json({
+    status: "OK",
+    uptime: process.uptime(),
+    timestamp: new Date()
+  });
+});
 
 mongoose.connect(process.env.MONGO_URL)
   .then(() => console.log("DB connected"))

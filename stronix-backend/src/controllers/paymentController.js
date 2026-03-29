@@ -1,5 +1,6 @@
 import Payment from "../models/Payment.js";
 import Order from "../models/Order.js";
+import AuditLog from "../models/AuditLog.js";
 
 export const initiatePayment = async(req, res) => {
     try {
@@ -13,6 +14,14 @@ export const initiatePayment = async(req, res) => {
             order: orderId,
             amount: order.totalAmount
         });
+
+        await AuditLog.create({
+            user: req.user._id,
+            action: "PAYMENT_INITIATED",
+            entity: "Payment",
+            entityId: payment._id
+        });
+
         res.json(payment);
     } catch(err){
         res.status(500).json({ error: err.message});
@@ -35,6 +44,20 @@ export const paymentSuccess = async (req, res) => {
     const order = await Order.findById(payment.order);
     order.status = "CONFIRMED";
     await order.save();
+
+    await AuditLog.create({
+      user: req.user._id,
+      action: "PAYMENT_SUCCESS",
+      entity: "Payment",
+      entityId: payment._id
+    });
+
+    await AuditLog.create({
+      user: req.user._id,
+      action: "CONFIRM_ORDER",
+      entity: "Order",
+      entityId: order._id
+    });
 
     res.json({ message: "Payment successful", payment });
 
@@ -59,6 +82,13 @@ export const paymentFailed = async(req, res) => {
         order.status = "CANCELLED";
         await order.save();
 
+        await AuditLog.create({
+            user: req.user._id,
+            action: "PAYMENT_FAILED",
+            entity: "Payment",
+            entityId: payment._id
+        });
+
         res.json({ message: "Payment failed", payment});
     } catch(err){
         res.status(500).json({ error: err.message});
@@ -76,6 +106,13 @@ export const refundPayment = async(req, res) => {
         }
         payment.status = "REFUNDED";
         await payment.save();
+
+        await AuditLog.create({
+            user: req.user._id,
+            action: "PAYMENT_REFUNDED",
+            entity: "Payment",
+            entityId: payment._id
+        });
 
         res.json({ message: "Refund processed", payment});
     } catch(err){

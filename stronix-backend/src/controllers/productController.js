@@ -1,4 +1,5 @@
 import Product from "../models/Product.js";
+import AuditLog from "../models/AuditLog.js";
 
 
 export const createProduct = async (req, res) => {

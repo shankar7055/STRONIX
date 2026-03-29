@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import AuditLog from "../models/AuditLog.js";
 
 // REGISTER
 export const register = async (req, res) => {
@@ -15,6 +16,13 @@ export const register = async (req, res) => {
       name,
       email,
       password: hashedPassword
+    });
+
+    await AuditLog.create({
+      user: user._id,
+      action: "USER_REGISTERED",
+      entity: "User",
+      entityId: user._id
     });
 
     res.json(user);
@@ -40,6 +48,13 @@ export const login = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
+
+    await AuditLog.create({
+      user: user._id,
+      action: "USER_LOGIN",
+      entity: "User",
+      entityId: user._id
+    });
 
     res.json({ token });
   } catch (err) {

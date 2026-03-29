@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import AuditLog from "../models/AuditLog.js";
 
 export const getAllUsers = async(req, res) => {
     try{

@@ -2,6 +2,7 @@ import Order from "../models/Order.js";
 import Inventory from "../models/Inventory.js";
 import Product from "../models/Product.js";
 import OrderItem from "../models/OrderItem.js";
+import AuditLog from "../models/AuditLog.js";
 
 export const createOrder = async (req, res) => {
   try {
@@ -59,6 +60,13 @@ export const createOrder = async (req, res) => {
       totalAmount
     });
 
+    await AuditLog.create({
+      user: req.user._id,
+      action: "CREATE_ORDER",
+      entity: "Order",
+      entityId: order._id
+    });
+
     res.json(order);
 
   } catch (err) {
@@ -82,6 +90,13 @@ export const confirmOrder = async ( req, res)=> {
         order.status = "CONFIRMED";
         await order.save();
 
+        await AuditLog.create({
+          user: req.user._id,
+          action: "CONFIRM_ORDER",
+          entity: "Order",
+          entityId: order._id
+        });
+
         res.json(order);
     } catch(err){
         res.status(500).json({ error: err.message});
@@ -103,6 +118,13 @@ export const cancelOrder = async (req, res) => {
 
         order.status = "CANCELLED";
         await order.save();
+
+        await AuditLog.create({
+          user: req.user._id,
+          action: "CANCEL_ORDER",
+          entity: "Order",
+          entityId: order._id
+        });
 
         res.json(order);
     } catch(err){

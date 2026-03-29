@@ -17,6 +17,6 @@ const paymentSchema = new mongoose.Schema({
         enum: ["INITIATED", "SUCCESS", "FAILED", "REFUNDED"],
         default: "INITIATED"
     }
-}, { timestamps: true});
+}, { timestamps: true});    
 
 export default mongoose.model("Payment", paymentSchema);
