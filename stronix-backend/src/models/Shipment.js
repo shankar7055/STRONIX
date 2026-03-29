@@ -14,7 +14,22 @@ const shipmentSchema = new mongoose.Schema({
     address: {
         type: String,
         required: true
-    }
+    },
+    distributor: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Distributor"
+    },
+    status: {
+        type: String,
+        enum: ["CREATED", "ASSIGNED", "IN_TRANSIT", "DELIVERED","FAILED"],
+        default: "CREATED"
+    },
+    tracking: [
+        {
+            status: String,
+            timestamp: Date
+        }
+    ]
 }, {timestamps: true});
 
 export default mongoose.model("Shipment", shipmentSchema);

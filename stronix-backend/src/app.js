@@ -13,6 +13,7 @@ import supplierRoutes from "./routes/supplierRoutes.js";
 import purchaseRoutes from "./routes/purchaseRoutes.js";
 import invoiceRoutes from "./routes/invoiceRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
+import distributorRoutes from "./routes/distributorRoutes.js";
 dotenv.config();
 
 const app = express(); 
@@ -32,6 +33,7 @@ app.use("/suppliers", supplierRoutes);
 app.use("/purchase-orders", purchaseRoutes);
 app.use("/invoices", invoiceRoutes);
 app.use("/reports", reportRoutes);
+app.use("/distributors", distributorRoutes);
 
 app.get("/health", (req, res) => {
   res.json({
