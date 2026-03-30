@@ -6,32 +6,36 @@ import Distributor from "../models/Distributor.js";
 
 
 export const createShipment = async (req, res) => {
-    try {
-        const { orderId, address } = req.body;
+  try {
+    const { orderId, address } = req.body;
 
-        const order = await Order.findById(orderId);
-        if(!order) return res.status(404).json({ message: "Order not Found"});
+    const order = await Order.findById(orderId);
+    if (!order) return res.status(404).json({ message: "Order not Found" });
 
-        if(order.status !== "CONFIRMED") {
-            return res.status(400).json({ message: "Order not paid yet"});
-        }
-
-        const shipment = await Shipment.create({
-            order: orderId,
-            address
-        });
-        res.json(shipment);
-    } catch(err){
-        res.status(500).json({ error: err.message });
+    if (order.status !== "CONFIRMED") {
+      return res.status(400).json({ message: "Order not paid yet" });
     }
+
+    const shipment = await Shipment.create({
+      order: orderId,
+      address
+    });
+
+    res.json(shipment);
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 };
+
+
 
 export const updateShipmentStatus = async (req, res) => {
   try {
     const { shipmentId } = req.params;
     const { status } = req.body;
 
-    const shipment = await Shipment.findById(shipmentId).populate("distributor");
+    const shipment = await Shipment.findById(shipmentId);
 
     if (!shipment) {
       return res.status(404).json({ message: "Shipment not found" });
@@ -39,15 +43,44 @@ export const updateShipmentStatus = async (req, res) => {
 
     shipment.status = status;
 
+    
     shipment.tracking.push({
       status,
       timestamp: new Date()
     });
 
-   
+    
     if (status === "DELIVERED") {
-      shipment.distributor.currentLoad -= 1;
-      await shipment.distributor.save();
+      shipment.deliveredAt = new Date();
+
+      if (shipment.distributor) {
+        const distributor = await Distributor.findById(shipment.distributor);
+
+        if (distributor) {
+          distributor.currentLoad -= 1;
+          distributor.totalDeliveries += 1;
+          distributor.successfulDeliveries += 1;
+
+          
+          if (shipment.assignedAt) {
+            const timeTaken =
+              (shipment.deliveredAt - shipment.assignedAt) / (1000 * 60);
+
+            distributor.avgDeliveryTime =
+              (distributor.avgDeliveryTime + timeTaken) / 2;
+          }
+
+          await distributor.save();
+        }
+      }
+
+      
+      await AuditLog.create({
+        user: req.user._id,
+        action: "DELIVERED",
+        entity: "Shipment",
+        entityId: shipment._id
+      });
     }
 
     await shipment.save();
@@ -59,67 +92,132 @@ export const updateShipmentStatus = async (req, res) => {
   }
 };
 
-export const assignDistributor = async(req, res) => {
+
+
+export const assignDistributor = async (req, res) => {
+  try {
+    const { shipmentId } = req.params;
+
+    const shipment = await Shipment.findById(shipmentId);
+
+    if (!shipment) {
+      return res.status(404).json({ message: "Shipment not found" });
+    }
+
+
+    const distributor = await Distributor.findOne({
+      serviceArea: { $regex: shipment.address, $options: "i" },
+      status: "ACTIVE",
+      $expr: { $lt: ["$currentLoad", "$maxCapacity"] }
+    }).sort({
+      rating: -1,       
+      currentLoad: 1    
+    });
+
+    if (!distributor) {
+      return res.status(404).json({ message: "No distributor available" });
+    }
+
+    shipment.distributor = distributor._id;
+    shipment.status = "ASSIGNED";
+    shipment.assignedAt = new Date();
+
+    shipment.tracking.push({
+      status: "ASSIGNED",
+      timestamp: new Date()
+    });
+
+    await shipment.save();
+
+    distributor.currentLoad += 1;
+    await distributor.save();
+
+    
+    await AuditLog.create({
+      user: req.user._id,
+      action: "ASSIGN_DISTRIBUTOR",
+      entity: "Shipment",
+      entityId: shipment._id
+    });
+
+    res.json({ message: "Distributor assigned", shipment });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+
+export const markFailed = async (req, res) => {
+  try {
+    const { shipmentId } = req.params;
+
+    const shipment = await Shipment.findById(shipmentId);
+
+    if (!shipment) {
+      return res.status(404).json({ message: "Shipment not found" });
+    }
+
+    shipment.status = "FAILED";
+
+    shipment.tracking.push({
+      status: "FAILED",
+      timestamp: new Date()
+    });
+
+    // update distributor safely
+    if (shipment.distributor) {
+      const distributor = await Distributor.findById(shipment.distributor);
+
+      if (distributor) {
+        distributor.currentLoad -= 1;
+        distributor.failedDeliveries += 1;
+
+        await distributor.save();
+      }
+    }
+
+    shipment.distributor = null;
+
+    await shipment.save();
+
+    // audit log
+    await AuditLog.create({
+      user: req.user._id,
+      action: "SHIPMENT_FAILED",
+      entity: "Shipment",
+      entityId: shipment._id
+    });
+
+    res.json({
+      message: "Shipment failed, ready for reassignment",
+      shipment
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const dispachShipment = async(req, res) => {
     try {
         const { shipmentId} = req.params;
 
         const shipment = await Shipment.findById(shipmentId);
 
-        if(!shipment) {
-            return res.status(404).json({ message: "Shipment not found" });
-        }
-        const distributor = await Distributor.findOne({
-      serviceArea: { $regex: shipment.address, $options: "i" },
-      status: "ACTIVE"
-    }).sort({ currentLoad: 1 });
-
-
-        if(!distributor){
-            return res.status(404).json({ message: "No distributor available"});
-        }
-
-        shipment.distributor = distributor._id;
-        shipment.status = "ASSIGNED";
-
-        shipment.tracking.push({
-            status: "ASSIGNED",
-            timestamp: new Date(),
-        });
-
-        await shipment.save();
-
-        distributor.currentLoad += 1;
-        await distributor.save();
-
-        res.json({ message: "Distributor assigned", shipment });
-    }catch(err){
-        res.status(500).json({ error: err.message});
-    }
-};
-
-export const markFailed = async(req, res) => {
-    try{
-        const { shipmentId} = req.params;
-
-        const shipment = await Shipment.findById(shipmentId).populate("distributor");
-        if(!shipment) {
+        if(!shipment){
             return res.status(404).json({ message: "Shipment not found"});
         }
-        shipment.status = "FAILED";
+
         shipment.tracking.push({
-            status: "FAILED",
+            status: "DISPATCHED_FROM_WAREHOUSE",
             timestamp: new Date()
         });
 
-        //reduce load
-        shipment.distributor.currentLoad -= 1;
-        await shipment.distributor.save();
-
-        shipment.distributor = null;
-
         await shipment.save();
 
-        res.json({ message: "Shipment failed, ready for reassignment", shipment});
+        res.json({ message: "Order despatched", shipment});
     } catch(err){
         res.status(500).json({ error: err.message});
     }

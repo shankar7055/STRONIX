@@ -49,3 +49,23 @@ export const getStock = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+export const updateStock = async( req, res) => {
+    try {
+        const { inventoryId, quantity} = req.body;
+
+        const inventory = await Inventory.findById(inventoryId);
+
+        if(!inventory){
+            return res.status(404).json({ message: "Inventory not found"});
+        }
+        inventory.availableQuantity += quantity;
+
+        await inventory.save();
+
+        res.json({ message: "Stock updated", inventory});
+    }catch(err){
+        res.status(500).json({ error: err.message });
+    }
+};
+
