@@ -2,6 +2,8 @@ import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
+import swaggerUi from "swagger-ui-express";
+import YAML from "yamljs";
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
@@ -18,6 +20,8 @@ import warehouseManagerRoutes from "./routes/warehouseManagerRoutes.js";
 dotenv.config();
 
 const app = express(); 
+const swaggerDocument = YAML.load("./src/swagger.yaml");
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Enable CORS and JSON body parsing before mounting routes
 app.use(cors()); 
