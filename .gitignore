@@ -1,0 +1,82 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+bun-debug.log*
+*.pid
+
+# Dependencies
+**/node_modules/
+.pnp/
+.pnp.js
+
+# Build output
+**/dist/
+**/dist-ssr/
+**/build/
+**/.output/
+**/.out/
+**/coverage/
+*.tsbuildinfo
+
+# Tool caches (Vite/TanStack/SSR/etc.)
+**/.vite/
+**/.vinxi/
+**/.nitro/
+**/.tanstack/
+**/.turbo/
+**/.cache/
+**/.parcel-cache/
+
+# Cloudflare Wrangler
+**/.wrangler/
+**/.dev.vars
+
+# Editor / IDE
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Agent/Claude runtime files
+.agents/
+.swarm/
+ruvector.db
+*.db-shm
+*.db-wal
+
+# Local AI tooling config (repo-specific but typically not meant for source control)
+.claude/
+.mcp.json
+skills-lock.json
+CLAUDE.md
+
+# Local screenshots (generated during UI iterations)
+ab-*.png
+
+# Claude Flow runtime files
+.claude-flow/
+.claude-flow/data/
+.claude-flow/logs/
+.claude-flow/sessions/
+.claude-flow/neural/
+.claude-flow/metrics/
+.claude-flow/security/
