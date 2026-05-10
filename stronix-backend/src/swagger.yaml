@@ -1,0 +1,175 @@
+openapi: 3.0.0
+info:
+  title: Stronix API
+  version: 1.0.0
+  description: Full Supply Chain Backend
+
+servers:
+  - url: http://localhost:5001
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+paths:
+
+  # 🔐 AUTH
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              name: Manager
+              email: wm@gmail.com
+              password: 123456
+              role: WAREHOUSE_MANAGER
+      responses:
+        200:
+          description: User created
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              email: wm@gmail.com
+              password: 123456
+      responses:
+        200:
+          description: Token returned
+
+  # 📦 PRODUCTS
+  /products:
+    get:
+      tags: [Products]
+      summary: Get all products
+      responses:
+        200:
+          description: OK
+
+    post:
+      tags: [Products]
+      summary: Create product
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Created
+
+  # 🛒 ORDERS
+  /orders:
+    post:
+      tags: [Orders]
+      summary: Create order
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Order created
+
+  # 🚚 SHIPMENTS
+  /shipments:
+    post:
+      tags: [Shipments]
+      summary: Create shipment
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Shipment created
+
+  /shipments/status/{shipmentId}:
+    put:
+      tags: [Shipments]
+      summary: Update shipment status
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Updated
+
+  # 🏭 WAREHOUSE MANAGER
+  /warehouse-manager/inventory:
+    get:
+      tags: [Warehouse]
+      summary: View inventory
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Inventory list
+
+  /warehouse-manager/stock:
+    put:
+      tags: [Warehouse]
+      summary: Update stock
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Stock updated
+
+  /warehouse-manager/dispatch/{shipmentId}:
+    put:
+      tags: [Warehouse]
+      summary: Dispatch shipment
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: shipmentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Dispatched
+
+  # 🚴 DISTRIBUTOR
+  /distributors:
+    post:
+      tags: [Distributor]
+      summary: Create distributor
+      responses:
+        200:
+          description: Created
+
+  # 💳 PAYMENTS
+  /payments/razorpay-order:
+    post:
+      tags: [Payments]
+      summary: Create Razorpay order
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Order created
+
+  /payments/verify:
+    post:
+      tags: [Payments]
+      summary: Verify payment
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Verified
+
+          
