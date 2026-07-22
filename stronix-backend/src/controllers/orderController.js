@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Order from "../models/Order.js";
 import Inventory from "../models/Inventory.js";
 import Product from "../models/Product.js";
@@ -19,7 +20,7 @@ export const createOrder = async (req, res) => {
         return res.status(404).json({ message: "Product not found" });
       }
 
-      if (product.status !== "ACTIVATE") {
+      if (product.status !== "ACTIVE") {
         return res.status(400).json({ message: "Product not active" });
       }
 
@@ -75,61 +76,123 @@ export const createOrder = async (req, res) => {
 };
 
 
-export const confirmOrder = async ( req, res)=> {
-    try {
-        const { orderId} = req.params;
+export const confirmOrder = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const { orderId } = req.params;
 
-        const order = await Order.findById(orderId);
-        if(!order) return res.status(404).json({ message: "Order not found"});
-
-        const inventory = await Inventory.findOne({ product: order.product});
-
-        inventory.reservedQuantity -= order.quantity;
-        await inventory.save();
-
-        order.status = "CONFIRMED";
-        await order.save();
-
-        await AuditLog.create({
-          user: req.user._id,
-          action: "CONFIRM_ORDER",
-          entity: "Order",
-          entityId: order._id
-        });
-
-        res.json(order);
-    } catch(err){
-        res.status(500).json({ error: err.message});
+    const order = await Order.findById(orderId).populate("items").session(session);
+    if (!order) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: "Order not found" });
     }
+
+    if (order.status !== "PENDING") {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: `Order cannot be confirmed. Current status: ${order.status}` });
+    }
+
+    for (const item of order.items) {
+      const inventory = await Inventory.findOneAndUpdate(
+        {
+          product: item.product,
+          reservedQuantity: { $gte: item.quantity }
+        },
+        {
+          $inc: { reservedQuantity: -item.quantity }
+        },
+        { new: true, session }
+      );
+
+      if (!inventory) {
+        throw new Error(`Insufficient reserved stock or inventory not found for product: ${item.product}`);
+      }
+    }
+
+    order.status = "CONFIRMED";
+    await order.save({ session });
+
+    const auditLog = new AuditLog({
+      user: req.user._id,
+      action: "CONFIRM_ORDER",
+      entity: "Order",
+      entityId: order._id
+    });
+    await auditLog.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.json(order);
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    res.status(500).json({ error: err.message });
+  }
 };
 
 export const cancelOrder = async (req, res) => {
-    try {
-        const { orderId} = req.params;
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const { orderId } = req.params;
 
-        const order = await Order.findById(orderId);
-        if(!order) return res.status(404).json({ message: "Order not found"});
-
-        const inventory = await Inventory.findOne({ product: order.product});
-
-        inventory.availableQuantity += order.quantity;
-        inventory.reservedQuantity -= order.quantity;
-        await inventory.save();
-
-        order.status = "CANCELLED";
-        await order.save();
-
-        await AuditLog.create({
-          user: req.user._id,
-          action: "CANCEL_ORDER",
-          entity: "Order",
-          entityId: order._id
-        });
-
-        res.json(order);
-    } catch(err){
-        res.status(500).json({ error: err.message});
+    const order = await Order.findById(orderId).populate("items").session(session);
+    if (!order) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ message: "Order not found" });
     }
+
+    if (order.status !== "PENDING") {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: `Order cannot be cancelled. Current status: ${order.status}` });
+    }
+
+    for (const item of order.items) {
+      const inventory = await Inventory.findOneAndUpdate(
+        {
+          product: item.product,
+          reservedQuantity: { $gte: item.quantity }
+        },
+        {
+          $inc: {
+            reservedQuantity: -item.quantity,
+            availableQuantity: item.quantity
+          }
+        },
+        { new: true, session }
+      );
+
+      if (!inventory) {
+        throw new Error(`Insufficient reserved stock or inventory not found for product: ${item.product}`);
+      }
+    }
+
+    order.status = "CANCELLED";
+    await order.save({ session });
+
+    const auditLog = new AuditLog({
+      user: req.user._id,
+      action: "CANCEL_ORDER",
+      entity: "Order",
+      entityId: order._id
+    });
+    await auditLog.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.json(order);
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    res.status(500).json({ error: err.message });
+  }
 };
 
 export const getOrderById = async (req, res) => {

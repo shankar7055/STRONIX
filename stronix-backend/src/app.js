@@ -17,6 +17,8 @@ import invoiceRoutes from "./routes/invoiceRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import distributorRoutes from "./routes/distributorRoutes.js";
 import warehouseManagerRoutes from "./routes/warehouseManagerRoutes.js";
+import seedRoutes from "./routes/seedRoutes.js";
+import { seedDatabase } from "./controllers/seedController.js";
 dotenv.config();
 
 const app = express(); 
@@ -40,6 +42,7 @@ app.use("/invoices", invoiceRoutes);
 app.use("/reports", reportRoutes);
 app.use("/distributors", distributorRoutes);
 app.use("/warehouse-manager", warehouseManagerRoutes);
+app.use("/seed", seedRoutes);
 
 app.get("/health", (req, res) => {
   res.json({
@@ -49,15 +52,22 @@ app.get("/health", (req, res) => {
   });
 });
 
-mongoose.connect(process.env.MONGO_URL)
-  .then(() => console.log("DB connected"))
-  .catch(err => console.log(err));
+if (process.env.NODE_ENV !== "test") {
+  mongoose.connect(process.env.MONGO_URL)
+    .then(() => {
+      console.log("DB connected");
+      seedDatabase().catch((err) => console.log("Seeding notice:", err.message));
+    })
+    .catch(err => console.log(err));
+
+  const PORT = process.env.PORT || 5001; // 5000 is reserved by some macOS services (AirPlay/ControlCenter)
+  app.listen(PORT, () => {
+    console.log(`server is running on port ${PORT}`);
+  });
+}
 
 app.get("/", (req, res) => {
   res.send("STRONIX API RUNNING");
 });
 
-const PORT = process.env.PORT || 5001; // 5000 is reserved by some macOS services (AirPlay/ControlCenter)
-app.listen(PORT, () => {
-  console.log(`server is running on port ${PORT}`);
-});
+export default app;

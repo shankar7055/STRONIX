@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001"
+    environment:
+      - PORT=5001
+      - MONGO_URL=mongodb://mongodb:27017/stronix?replicaSet=rs0
+      - JWT_SECRET=supersecret
+      - RAZORPAY_KEY_ID=rzp_test_SyDPoVq3MCbkpS
+      - RAZORPAY_KEY_SECRET=3nxa6kIpb9gfPwd00wjjjtmA
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+  mongodb:
+    image: mongo:7.0
+    ports:
+      - "27017:27017"
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
+  mongodb-setup:
+    image: mongo:7.0
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: "no"
+    command: >
+      mongosh --host mongodb:27017 --eval "
+        try {
+          if (rs.status().ok) {
+            console.log('Replica set already initialized.');
+          }
+        } catch (e) {
+          rs.initiate({
+            _id: 'rs0',
+            members: [{ _id: 0, host: 'mongodb:27017' }]
+          });
+          console.log('Replica set rs0 initiated successfully.');
+        }
+      "
+
+volumes:
+  mongo_data:

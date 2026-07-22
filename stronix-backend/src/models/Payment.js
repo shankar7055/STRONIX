@@ -16,6 +16,9 @@ const paymentSchema = new mongoose.Schema({
         type: String,
         enum: ["INITIATED", "SUCCESS", "FAILED", "REFUNDED"],
         default: "INITIATED"
+    },
+    razorpayOrderId: {
+        type: String
     }
 }, { timestamps: true});    
 
