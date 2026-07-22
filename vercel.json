@@ -1,0 +1,4 @@
+{
+  "buildCommand": "npm run build --prefix stronix-frontend",
+  "outputDirectory": "stronix-frontend/.next"
+}
