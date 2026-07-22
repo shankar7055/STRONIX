@@ -1,0 +1,6 @@
+{
+  "buildCommand": "cd stronix-frontend && npm run build",
+  "outputDirectory": "stronix-frontend/.next",
+  "installCommand": "cd stronix-frontend && npm install",
+  "framework": "nextjs"
+}
