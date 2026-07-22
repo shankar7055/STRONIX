@@ -1,5 +1,4 @@
 import crypto from "crypto";
-import { razorpay } from "../config/razorpay.js";
 import Payment from "../models/Payment.js";
 import Order from "../models/Order.js";
 import AuditLog from "../models/AuditLog.js";
@@ -14,7 +13,8 @@ export const initiatePayment = async(req, res) => {
 
         const payment = await Payment.create({
             order: orderId,
-            amount: order.totalAmount
+            amount: order.totalAmount,
+            status: "INITIATED"
         });
 
         await AuditLog.create({
@@ -39,13 +39,14 @@ export const paymentSuccess = async (req, res) => {
       return res.status(404).json({ message: "Payment not found" });
     }
 
-    
     payment.status = "SUCCESS";
     await payment.save();
 
     const order = await Order.findById(payment.order);
-    order.status = "CONFIRMED";
-    await order.save();
+    if (order) {
+      order.status = "CONFIRMED";
+      await order.save();
+    }
 
     await AuditLog.create({
       user: req.user._id,
@@ -54,12 +55,14 @@ export const paymentSuccess = async (req, res) => {
       entityId: payment._id
     });
 
-    await AuditLog.create({
-      user: req.user._id,
-      action: "CONFIRM_ORDER",
-      entity: "Order",
-      entityId: order._id
-    });
+    if (order) {
+      await AuditLog.create({
+        user: req.user._id,
+        action: "CONFIRM_ORDER",
+        entity: "Order",
+        entityId: order._id
+      });
+    }
 
     res.json({ message: "Payment successful", payment });
 
@@ -74,15 +77,17 @@ export const paymentFailed = async(req, res) => {
 
         const payment = await Payment.findById(paymentId);
         if(!payment) {
-            return res.json(404).json({ message: "Payment not found"});
+            return res.status(404).json({ message: "Payment not found"});
         }
 
         payment.status = "FAILED";
         await payment.save();
 
         const order = await Order.findById(payment.order);
-        order.status = "CANCELLED";
-        await order.save();
+        if (order) {
+          order.status = "CANCELLED";
+          await order.save();
+        }
 
         await AuditLog.create({
             user: req.user._id,
@@ -134,23 +139,13 @@ export const createRazorpayOrder = async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    // Amount needs to be in paise (smallest currency unit for INR)
-    const amountInPaise = Math.round(order.totalAmount * 100);
+    const paymentOrderId = `pay_ord_${order._id.toString().slice(-8)}`;
 
-    const options = {
-      amount: amountInPaise,
-      currency: "INR",
-      receipt: `receipt_order_${order._id}`
-    };
-
-    const razorpayOrder = await razorpay.orders.create(options);
-
-    // Create internal Payment document with INITIATED status
     const payment = await Payment.create({
       order: orderId,
       amount: order.totalAmount,
       status: "INITIATED",
-      razorpayOrderId: razorpayOrder.id
+      razorpayOrderId: paymentOrderId
     });
 
     const auditLog = new AuditLog({
@@ -162,10 +157,9 @@ export const createRazorpayOrder = async (req, res) => {
     await auditLog.save();
 
     res.status(201).json({
-      key: process.env.RAZORPAY_KEY_ID,
-      razorpayOrderId: razorpayOrder.id,
-      amount: razorpayOrder.amount,
-      currency: razorpayOrder.currency,
+      paymentOrderId,
+      amount: order.totalAmount,
+      currency: "INR",
       paymentId: payment._id
     });
   } catch (err) {
@@ -175,48 +169,17 @@ export const createRazorpayOrder = async (req, res) => {
 
 export const verifyPayment = async (req, res) => {
   try {
-    const { paymentId, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    const { paymentId } = req.body;
 
-    if (!paymentId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      return res.status(400).json({ message: "Missing verification parameters" });
+    if (!paymentId) {
+      return res.status(400).json({ message: "Missing paymentId parameter" });
     }
-
-    // Verify signature
-    const body = razorpay_order_id + "|" + razorpay_payment_id;
-    const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-      .update(body.toString())
-      .digest("hex");
-
-    const isSignatureValid = expectedSignature === razorpay_signature;
 
     const payment = await Payment.findById(paymentId);
     if (!payment) {
       return res.status(404).json({ message: "Payment not found" });
     }
 
-    if (!isSignatureValid) {
-      payment.status = "FAILED";
-      await payment.save();
-
-      const order = await Order.findById(payment.order);
-      if (order) {
-        order.status = "CANCELLED";
-        await order.save();
-      }
-
-      const auditLog = new AuditLog({
-        user: req.user._id,
-        action: "PAYMENT_FAILED",
-        entity: "Payment",
-        entityId: payment._id
-      });
-      await auditLog.save();
-
-      return res.status(400).json({ message: "Invalid payment signature", status: "FAILED" });
-    }
-
-    // Signature is valid, process success logic
     payment.status = "SUCCESS";
     await payment.save();
 
